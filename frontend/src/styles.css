@@ -1,0 +1,42 @@
+:root {
+  --bg-a: #ffffff;
+  --bg-b: #ffffff;
+  --bg-c: #ffffff;
+
+  /* 浅蓝色可爱风 */
+  --accent: #6db9e8;
+  --accent-deep: #3f9ad1;
+  --accent-soft: #dff1fb;
+  --violet: #9fc7ec;
+  --ink: #3b4a5a;
+  --muted: #7f97ac;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --shadow: 0 6px 20px rgba(120, 170, 215, 0.18);
+  --grad: linear-gradient(135deg, #8ecdf2 0%, #6db9e8 100%);
+  --grad-violet: linear-gradient(135deg, #9fc7ec 0%, #8ecdf2 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color: var(--ink);
+}
+
+button {
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  border-radius: var(--radius-sm);
+}

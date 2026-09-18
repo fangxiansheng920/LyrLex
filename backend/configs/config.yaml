@@ -1,0 +1,6 @@
+server:
+  host: "127.0.0.1"
+  port: 18080   # 开发默认端口；Electron 启动时会通过 --port 传入空闲端口
+
+db:
+  path: "../data/lyrics.db"   # 相对 backend 运行目录；可用 LYRICS_DATA_DIR 环境变量覆盖目录

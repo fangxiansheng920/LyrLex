@@ -1,0 +1,19 @@
+# Go
+backend/lyrics-server.exe
+backend/data/
+backend/.env
+
+# Node / Electron
+frontend/node_modules/
+frontend/dist/
+frontend/dist-electron/
+frontend/release/
+frontend/release2/
+
+# 本地数据
+data/
+*.db
+*.db-journal
+
+.reasonix
+*.exe
