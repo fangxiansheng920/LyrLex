@@ -44,7 +44,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	lyricHandler := handler.NewLyricHandler(lyricService)
 	wordDaoGorm := dao.NewWordDao(db)
 	freeDictionaryProvider := dictionary.NewFreeDictionaryProvider()
-	jishoDictionaryProvider := dictionary.NewJishoDictionaryProvider(myMemoryTranslationProvider)
+	jishoDictionaryProvider := dictionary.NewJishoDictionaryProvider()
 	compositeDictionaryProvider := dictionary.NewCompositeDictionaryProvider(freeDictionaryProvider, jishoDictionaryProvider)
 	youdaoDictVoiceProvider := pronunciation.NewYoudaoDictVoiceProvider()
 	wordService := service.NewWordService(wordDaoGorm, compositeDictionaryProvider, compositeTokenizer, youdaoDictVoiceProvider, compositeTranslationProvider, cfg)

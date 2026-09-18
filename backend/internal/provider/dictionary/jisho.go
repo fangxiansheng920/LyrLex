@@ -11,20 +11,17 @@ import (
 	"time"
 
 	"lyrics-server/internal/provider"
-	"lyrics-server/internal/provider/translation"
 )
 
-// JishoDictionaryProvider 使用 jisho.org 免费 API 获取日文读音与词义，
-// 英文释义通过翻译 Provider 转中文（失败则保留英文）。
+// JishoDictionaryProvider 使用 jisho.org 免费 API 获取日文读音与英文释义；
+// 中文翻译统一由上层翻译源处理（有道优先，回退免费源）。
 type JishoDictionaryProvider struct {
 	client *http.Client
-	trans  *translation.MyMemoryTranslationProvider
 }
 
-func NewJishoDictionaryProvider(trans *translation.MyMemoryTranslationProvider) *JishoDictionaryProvider {
+func NewJishoDictionaryProvider() *JishoDictionaryProvider {
 	return &JishoDictionaryProvider{
 		client: &http.Client{Timeout: 10 * time.Second},
-		trans:  trans,
 	}
 }
 
@@ -98,13 +95,9 @@ func (p *JishoDictionaryProvider) Lookup(ctx context.Context, lang, word string)
 		if def == "" {
 			continue
 		}
-		meaning := def
-		if zh, err := p.trans.Translate(ctx, def, "en", "zh-CN"); err == nil && zh != "" {
-			meaning = zh
-		}
 		entry.Meanings = append(entry.Meanings, provider.Meaning{
 			POS:     strings.Join(s.PartsOfSpeech, "/"),
-			Meaning: meaning,
+			Meaning: def,
 		})
 	}
 	return entry, nil
