@@ -11,3 +11,8 @@ type ImportSongReq struct {
 	Title  string `json:"title"`
 	Artist string `json:"artist"`
 }
+
+// BatchDeleteSongsReq 批量删除歌曲请求。
+type BatchDeleteSongsReq struct {
+	IDs []int64 `json:"ids" binding:"required,min=1"`
+}

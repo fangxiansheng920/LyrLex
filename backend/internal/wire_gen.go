@@ -29,7 +29,10 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 	lyricDaoGorm := dao.NewLyricDao(db)
+	settingsService := service.NewSettingsService(cfg)
+	youdaoTranslationProvider := translation.NewYoudaoTranslationProvider(settingsService)
 	myMemoryTranslationProvider := translation.NewMyMemoryTranslationProvider()
+	compositeTranslationProvider := translation.NewCompositeTranslationProvider(youdaoTranslationProvider, myMemoryTranslationProvider)
 	englishTokenizer := tokenizer.NewEnglishTokenizer()
 	japaneseTokenizer, err := tokenizer.NewJapaneseTokenizer()
 	if err != nil {
@@ -37,19 +40,18 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	}
 	compositeTokenizer := tokenizer.NewCompositeTokenizer(englishTokenizer, japaneseTokenizer)
 	neteaseCloudMusicApiProvider := lyrics.NewNeteaseCloudMusicApiProvider()
-	lyricService := service.NewLyricService(lyricDaoGorm, myMemoryTranslationProvider, compositeTokenizer, neteaseCloudMusicApiProvider, cfg)
+	lyricService := service.NewLyricService(lyricDaoGorm, compositeTranslationProvider, compositeTokenizer, neteaseCloudMusicApiProvider, cfg)
 	lyricHandler := handler.NewLyricHandler(lyricService)
 	wordDaoGorm := dao.NewWordDao(db)
 	freeDictionaryProvider := dictionary.NewFreeDictionaryProvider()
 	jishoDictionaryProvider := dictionary.NewJishoDictionaryProvider(myMemoryTranslationProvider)
 	compositeDictionaryProvider := dictionary.NewCompositeDictionaryProvider(freeDictionaryProvider, jishoDictionaryProvider)
 	youdaoDictVoiceProvider := pronunciation.NewYoudaoDictVoiceProvider()
-	wordService := service.NewWordService(wordDaoGorm, compositeDictionaryProvider, compositeTokenizer, youdaoDictVoiceProvider, cfg)
+	wordService := service.NewWordService(wordDaoGorm, compositeDictionaryProvider, compositeTokenizer, youdaoDictVoiceProvider, compositeTranslationProvider, cfg)
 	wordHandler := handler.NewWordHandler(wordService)
 	vocabularyService := service.NewVocabularyService(wordDaoGorm)
 	vocabularyHandler := handler.NewVocabularyHandler(vocabularyService)
 	songHandler := handler.NewSongHandler(lyricService)
-	settingsService := service.NewSettingsService(cfg)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
 	engine := router.NewRouter(healthHandler, lyricHandler, wordHandler, vocabularyHandler, songHandler, settingsHandler)
 	app := NewApp(engine, db)

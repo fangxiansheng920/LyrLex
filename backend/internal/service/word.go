@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode"
 
 	"github.com/google/wire"
 
@@ -31,16 +32,17 @@ type LookupResult struct {
 
 // WordService 单词查询与发音。
 type WordService interface {
-	Lookup(ctx context.Context, lang, word, contextText string) (*LookupResult, error)
+	Lookup(ctx context.Context, lang, word, contextText string, force bool) (*LookupResult, error)
 	Audio(ctx context.Context, lang, word string) ([]byte, error)
 }
 
 type wordService struct {
-	dao  dao.WordDao
-	dict provider.DictionaryProvider
-	tok  provider.TokenizerProvider
-	pron provider.PronunciationProvider
-	cfg  *config.Config
+	dao   dao.WordDao
+	dict  provider.DictionaryProvider
+	tok   provider.TokenizerProvider
+	pron  provider.PronunciationProvider
+	trans provider.TranslationProvider
+	cfg   *config.Config
 }
 
 var _ WordService = (*wordService)(nil)
@@ -50,17 +52,20 @@ func NewWordService(
 	dict provider.DictionaryProvider,
 	tok provider.TokenizerProvider,
 	pron provider.PronunciationProvider,
+	trans provider.TranslationProvider,
 	cfg *config.Config,
 ) *wordService {
-	return &wordService{dao: d, dict: dict, tok: tok, pron: pron, cfg: cfg}
+	return &wordService{dao: d, dict: dict, tok: tok, pron: pron, trans: trans, cfg: cfg}
 }
 
-func (s *wordService) Lookup(ctx context.Context, lang, word, contextText string) (*LookupResult, error) {
-	// 命中本地缓存
-	if wc, err := s.dao.GetWordCache(ctx, lang, word); err == nil {
-		var entry provider.DictEntry
-		if json.Unmarshal([]byte(wc.Payload), &entry) == nil {
-			return toLookupResult(lang, &entry), nil
+func (s *wordService) Lookup(ctx context.Context, lang, word, contextText string, force bool) (*LookupResult, error) {
+	// 命中本地缓存（force=true 时跳过，强制重新查询词典）
+	if !force {
+		if wc, err := s.dao.GetWordCache(ctx, lang, word); err == nil {
+			var entry provider.DictEntry
+			if json.Unmarshal([]byte(wc.Payload), &entry) == nil {
+				return toLookupResult(lang, &entry), nil
+			}
 		}
 	}
 
@@ -75,6 +80,9 @@ func (s *wordService) Lookup(ctx context.Context, lang, word, contextText string
 		return nil, err
 	}
 
+	// 把非中文释义翻成中文（有道优先，失败回退免费源）
+	s.localizeMeanings(ctx, entry)
+
 	if payload, err := json.Marshal(entry); err == nil {
 		_ = s.dao.SetWordCache(ctx, &model.WordCache{
 			Lang:      lang,
@@ -84,6 +92,37 @@ func (s *wordService) Lookup(ctx context.Context, lang, word, contextText string
 		})
 	}
 	return toLookupResult(lang, entry), nil
+}
+
+// localizeMeanings 把非中文释义翻译成中文（有道优先，失败回退免费源）。
+func (s *wordService) localizeMeanings(ctx context.Context, entry *provider.DictEntry) {
+	const maxMeanings = 4
+	for i := range entry.Meanings {
+		if i >= maxMeanings {
+			break
+		}
+		m := &entry.Meanings[i]
+		if m.Meaning == "" || isMostlyChinese(m.Meaning) {
+			continue
+		}
+		if zh, err := s.trans.Translate(ctx, m.Meaning, "en", "zh-CN"); err == nil && zh != "" {
+			m.Meaning = zh
+		}
+	}
+}
+
+func isMostlyChinese(s string) bool {
+	var han, total int
+	for _, r := range s {
+		total++
+		if unicode.Is(unicode.Han, r) {
+			han++
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	return float64(han)/float64(total) >= 0.3
 }
 
 // jaMinimalEntry 用 kagome 对单词本身分词，构造最小词典条目。

@@ -10,6 +10,7 @@ type TranslateReq struct {
 	Source string   `json:"source" binding:"required"`
 	Target string   `json:"target" binding:"required"`
 	Lines  []string `json:"lines" binding:"required,min=1"`
+	Force  bool     `json:"force"` // true = 跳过缓存，重新翻译
 }
 
 // TokenizeReq 分词请求。
@@ -23,6 +24,7 @@ type LookupReq struct {
 	Language string `json:"language" binding:"required,oneof=en ja"`
 	Word     string `json:"word" binding:"required"`
 	Context  string `json:"context"`
+	Force    bool   `json:"force"` // true = 跳过缓存，重新查询
 }
 
 // MeaningIn 勾选的词义。

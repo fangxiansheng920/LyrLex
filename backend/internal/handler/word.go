@@ -24,7 +24,7 @@ func (h *WordHandler) Lookup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, resp.Error(http.StatusBadRequest, "参数错误: "+err.Error()))
 		return
 	}
-	result, err := h.svc.Lookup(c.Request.Context(), r.Language, r.Word, r.Context)
+	result, err := h.svc.Lookup(c.Request.Context(), r.Language, r.Word, r.Context, r.Force)
 	if err != nil {
 		c.JSON(http.StatusNotFound, resp.Error(http.StatusNotFound, err.Error()))
 		return

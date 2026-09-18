@@ -42,11 +42,14 @@ func NewRouter(
 		api.GET("/songs", song.List)
 		api.POST("/songs/search", song.Search)
 		api.POST("/songs/import", song.Import)
+		api.POST("/songs/batch-delete", song.BatchDelete)
 		api.GET("/songs/:id/lyrics", song.GetLyrics)
+		api.DELETE("/songs/:id", song.Delete)
 
 		api.GET("/settings", settings.Get)
 		api.PUT("/settings", settings.Save)
 		api.GET("/settings/datadir", settings.DataDir)
+		api.POST("/settings/test-translation", settings.TestTranslation)
 	}
 	return r
 }

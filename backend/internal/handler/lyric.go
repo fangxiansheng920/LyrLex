@@ -42,7 +42,7 @@ func (h *LyricHandler) Translate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, resp.Error(http.StatusBadRequest, "参数错误: "+err.Error()))
 		return
 	}
-	translations, err := h.svc.Translate(c.Request.Context(), r.Source, r.Target, r.Lines)
+	translations, err := h.svc.Translate(c.Request.Context(), r.Source, r.Target, r.Lines, r.Force)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, resp.Error(http.StatusInternalServerError, err.Error()))
 		return

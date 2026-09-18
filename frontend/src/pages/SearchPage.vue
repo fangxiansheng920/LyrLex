@@ -10,6 +10,8 @@ const importing = ref<string>('')
 const results = ref<SongMeta[]>([])
 const localSongs = ref<SongData[]>([])
 const searched = ref(false)
+const selectMode = ref(false)
+const selectedIds = ref<number[]>([])
 const toastMsg = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -104,6 +106,34 @@ async function openLocalSong(song: SongData): Promise<void> {
   }
 }
 
+function toggleSelectMode(): void {
+  selectMode.value = !selectMode.value
+  selectedIds.value = []
+}
+
+function toggleSelected(id: number): void {
+  const i = selectedIds.value.indexOf(id)
+  if (i >= 0) {
+    selectedIds.value.splice(i, 1)
+  } else {
+    selectedIds.value.push(id)
+  }
+}
+
+async function batchDelete(): Promise<void> {
+  if (selectedIds.value.length === 0) return
+  if (!window.confirm(`确定删除选中的 ${selectedIds.value.length} 首歌吗？`)) return
+  try {
+    await apiPost('/songs/batch-delete', { ids: selectedIds.value })
+    toast('已删除')
+    selectMode.value = false
+    selectedIds.value = []
+    await loadLocalSongs()
+  } catch (err) {
+    toast(err instanceof Error ? err.message : '删除失败')
+  }
+}
+
 onActivated(loadLocalSongs)
 </script>
 
@@ -134,14 +164,36 @@ onActivated(loadLocalSongs)
     </div>
 
     <div class="section">
-      <h3>本地歌曲库</h3>
+      <div class="section-head">
+        <h3>本地歌曲库</h3>
+        <div class="section-actions">
+          <template v-if="!selectMode">
+            <button v-if="localSongs.length" class="ghost" @click="toggleSelectMode">选择</button>
+          </template>
+          <template v-else>
+            <button class="danger" :disabled="selectedIds.length === 0" @click="batchDelete">
+              删除{{ selectedIds.length ? `(${selectedIds.length})` : '' }}
+            </button>
+            <button class="ghost" @click="toggleSelectMode">取消</button>
+          </template>
+        </div>
+      </div>
       <div v-if="localSongs.length === 0" class="empty">暂无已导入的歌曲</div>
-      <div v-for="s in localSongs" :key="s.id" class="row">
+      <div v-for="s in localSongs" :key="s.id" class="row" :class="{ selectable: selectMode }">
+        <input
+          v-if="selectMode"
+          type="checkbox"
+          class="song-check"
+          :checked="selectedIds.includes(s.id)"
+          @change="toggleSelected(s.id)"
+        />
         <div class="info">
           <div class="title">{{ s.title }}</div>
           <div class="artist">{{ s.artist }} · {{ s.language === 'ja' ? '日文' : '英文' }}</div>
         </div>
-        <button class="ghost" @click="openLocalSong(s)">打开</button>
+        <div v-if="!selectMode" class="row-actions">
+          <button class="ghost" @click="openLocalSong(s)">打开</button>
+        </div>
       </div>
     </div>
 
@@ -184,6 +236,16 @@ button.ghost {
   border: 1px solid rgba(74, 68, 88, 0.16);
   box-shadow: none;
 }
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+button.danger {
+  background: #ffe3ef;
+  color: #d95d6a;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
 .hint {
   margin-top: 8px;
   font-size: 12px;
@@ -193,10 +255,33 @@ button.ghost {
   margin-top: 20px;
   max-width: 640px;
 }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-actions {
+  display: flex;
+  gap: 6px;
+}
+.section-head h3 {
+  margin-bottom: 0;
+}
 h3 {
   font-size: 14px;
   color: var(--muted);
   margin: 0 0 8px;
+}
+.song-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+.info {
+  flex: 1;
+  min-width: 0;
 }
 .row {
   display: flex;

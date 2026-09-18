@@ -41,3 +41,28 @@ textarea,
 select {
   border-radius: var(--radius-sm);
 }
+
+/* 细滚动条：无边框、圆角、悬停加深 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 160, 200, 0.45) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border: none;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(120, 160, 200, 0.4);
+  border: none;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 160, 200, 0.65);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

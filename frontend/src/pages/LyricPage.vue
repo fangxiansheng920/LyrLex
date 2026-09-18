@@ -11,6 +11,7 @@ const language = ref('en')
 const lines = ref<LyricLine[]>([])
 const songId = ref(0)
 const busy = ref(false)
+const refreshingLine = ref<number | null>(null)
 const toastMsg = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -25,6 +26,7 @@ interface PopoverState {
   selected: boolean[]
   entry: 'lemma' | 'surface'
   adding: boolean
+  refreshing: boolean
 }
 const popover = ref<PopoverState | null>(null)
 
@@ -125,21 +127,43 @@ async function onTokenClick(token: Token, line: LyricLine, lineIndex: number, ev
     selected: [],
     entry: 'lemma',
     adding: false,
+    refreshing: false,
   }
 
   try {
-    const result = await apiPost<LookupData>('/words/lookup', {
-      language: language.value,
-      word: token.surface,
-      context: line.text,
-    })
-    if (popover.value) {
-      popover.value.result = result
-      popover.value.selected = result.meanings.map(() => true)
-      popover.value.entry = result.lemma && result.lemma !== result.surface ? 'lemma' : 'surface'
-    }
+    const result = await fetchLookup(token, line)
+    if (popover.value) applyLookup(popover.value, result)
   } catch (err) {
     if (popover.value) popover.value.error = err instanceof Error ? err.message : '查词失败'
+  }
+}
+
+function applyLookup(p: PopoverState, result: LookupData): void {
+  p.result = result
+  p.selected = result.meanings.map(() => true)
+  p.entry = result.lemma && result.lemma !== result.surface ? 'lemma' : 'surface'
+  p.error = ''
+}
+
+function fetchLookup(token: Token, line: LyricLine, force = false): Promise<LookupData> {
+  return apiPost<LookupData>('/words/lookup', {
+    language: language.value,
+    word: token.surface,
+    context: line.text,
+    force, // true = 跳过缓存，重新查询
+  })
+}
+
+async function refreshLookup(): Promise<void> {
+  const p = popover.value
+  if (!p || p.refreshing) return
+  p.refreshing = true
+  try {
+    applyLookup(p, await fetchLookup(p.token, p.line, true))
+  } catch (err) {
+    p.error = err instanceof Error ? err.message : '重新查询失败'
+  } finally {
+    p.refreshing = false
   }
 }
 
@@ -185,6 +209,30 @@ async function addToVocabulary(): Promise<void> {
     toast(err instanceof Error ? err.message : '收藏失败')
   } finally {
     p.adding = false
+  }
+}
+
+async function retranslate(lineIndex: number): Promise<void> {
+  const line = lines.value[lineIndex]
+  if (!line || refreshingLine.value !== null) return
+  refreshingLine.value = lineIndex
+  try {
+    const data = await apiPost<{ translations: string[] }>('/lyrics/translate', {
+      source: language.value,
+      target: 'zh-CN',
+      lines: [line.text],
+      force: true, // 跳过缓存，用当前翻译源重翻
+    })
+    const translated = data.translations?.[0] ?? ''
+    if (translated) {
+      line.translation = translated
+    } else {
+      toast('该行暂无可翻译内容')
+    }
+  } catch (err) {
+    toast(err instanceof Error ? err.message : '重新翻译失败')
+  } finally {
+    refreshingLine.value = null
   }
 }
 
@@ -261,7 +309,17 @@ async function saveSong(): Promise<void> {
           </template>
           <template v-else>{{ line.text }}</template>
         </p>
-        <p v-if="line.translation" class="translation">{{ line.translation }}</p>
+        <p class="translation-row">
+          <span class="translation">{{ line.translation || '（暂无译文，点 ↻ 重试）' }}</span>
+          <button
+            class="refresh"
+            :disabled="refreshingLine !== null"
+            title="重新翻译"
+            @click="retranslate(li)"
+          >
+            <span :class="{ spinning: refreshingLine === li }">↻</span>
+          </button>
+        </p>
       </div>
     </div>
 
@@ -275,8 +333,15 @@ async function saveSong(): Promise<void> {
           >
             → {{ popover.result.lemma }}
           </span>
-          <button v-if="popover.result.audio" class="speaker" @click="playAudio">🔊</button>
-          <button class="close" @click="popover = null">✕</button>
+          <div class="head-actions">
+            <button class="icon-btn" title="重新查询" @click="refreshLookup">
+              <span :class="{ spinning: popover.refreshing }">↻</span>
+            </button>
+            <button v-if="popover.result.audio" class="icon-btn" title="发音" @click="playAudio">
+              🔊
+            </button>
+            <button class="icon-btn" @click="popover = null">✕</button>
+          </div>
         </div>
         <div v-if="popover.result.phonetic" class="phonetic">{{ popover.result.phonetic }}</div>
         <div v-if="popover.result.kana" class="phonetic">
@@ -412,10 +477,33 @@ button.ghost {
 .original .word:hover {
   background: var(--accent-soft);
 }
-.translation {
+.translation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 2px 0 0;
+}
+.translation {
   font-size: 13px;
   color: var(--muted);
+}
+button.refresh {
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #fff;
+  color: var(--accent-deep);
+  border: 1px solid rgba(74, 68, 88, 0.14);
+  box-shadow: none;
+}
+.spinning {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .popover {
   position: fixed;
@@ -451,6 +539,19 @@ button.ghost {
 }
 .close {
   margin-left: 4px;
+}
+.head-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+button.icon-btn {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid rgba(74, 68, 88, 0.14);
+  padding: 5px 9px;
+  font-size: 13px;
+  box-shadow: none;
 }
 .phonetic {
   color: var(--accent-deep);

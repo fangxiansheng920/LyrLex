@@ -121,3 +121,31 @@ func (h *SongHandler) GetLyrics(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp.OK(gin.H{"song": song, "lines": lines}))
 }
+
+// Delete 删除本地歌曲及其歌词。
+func (h *SongHandler) Delete(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, resp.Error(http.StatusBadRequest, "参数错误: id"))
+		return
+	}
+	if err := h.svc.DeleteSong(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, resp.Error(http.StatusInternalServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp.OK(nil))
+}
+
+// BatchDelete 批量删除本地歌曲。
+func (h *SongHandler) BatchDelete(c *gin.Context) {
+	var r req.BatchDeleteSongsReq
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(http.StatusBadRequest, resp.Error(http.StatusBadRequest, "参数错误: "+err.Error()))
+		return
+	}
+	if err := h.svc.DeleteSongs(c.Request.Context(), r.IDs); err != nil {
+		c.JSON(http.StatusInternalServerError, resp.Error(http.StatusInternalServerError, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp.OK(nil))
+}

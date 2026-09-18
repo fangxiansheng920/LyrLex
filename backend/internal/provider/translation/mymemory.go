@@ -9,10 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/google/wire"
-
-	"lyrics-server/internal/provider"
 )
 
 // MyMemoryTranslationProvider 免费无 key 翻译源（个人使用）。
@@ -76,8 +72,3 @@ func (p *MyMemoryTranslationProvider) Translate(ctx context.Context, text, sourc
 	}
 	return parsed.ResponseData.TranslatedText, nil
 }
-
-var ProviderSet = wire.NewSet(
-	NewMyMemoryTranslationProvider,
-	wire.Bind(new(provider.TranslationProvider), new(*MyMemoryTranslationProvider)),
-)

@@ -61,3 +61,8 @@ func (h *SettingsHandler) Save(c *gin.Context) {
 func (h *SettingsHandler) DataDir(c *gin.Context) {
 	c.JSON(http.StatusOK, resp.OK(gin.H{"path": h.svc.DataDir()}))
 }
+
+// TestTranslation 测试当前翻译源（有道）是否可用。
+func (h *SettingsHandler) TestTranslation(c *gin.Context) {
+	c.JSON(http.StatusOK, resp.OK(h.svc.TestTranslation(c.Request.Context())))
+}

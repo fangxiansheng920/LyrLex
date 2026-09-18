@@ -16,6 +16,10 @@ type LyricDao interface {
 	GetSong(ctx context.Context, id int64) (*model.Song, error)
 	ListSongs(ctx context.Context, query string) ([]model.Song, error)
 	GetSongLines(ctx context.Context, songID int64) ([]model.SongLine, error)
+	FindSongByTitleArtist(ctx context.Context, title, artist string) (*model.Song, error)
+	ReplaceSongLines(ctx context.Context, songID int64, lines []model.SongLine) error
+	DeleteSong(ctx context.Context, id int64) error
+	DeleteSongs(ctx context.Context, ids []int64) error
 	GetTranslation(ctx context.Context, hash string) (*model.TranslationCache, error)
 	SetTranslation(ctx context.Context, tc *model.TranslationCache) error
 }
@@ -72,6 +76,60 @@ func (d *lyricDaoGorm) GetSongLines(ctx context.Context, songID int64) ([]model.
 		return nil, err
 	}
 	return lines, nil
+}
+
+// FindSongByTitleArtist 按歌名+歌手找已存在的歌曲；不存在返回 (nil, nil)。
+func (d *lyricDaoGorm) FindSongByTitleArtist(ctx context.Context, title, artist string) (*model.Song, error) {
+	var song model.Song
+	err := d.db.WithContext(ctx).
+		Where("title = ? AND artist = ?", title, artist).
+		First(&song).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &song, nil
+}
+
+// ReplaceSongLines 用新的歌词行替换某歌曲的全部旧行。
+func (d *lyricDaoGorm) ReplaceSongLines(ctx context.Context, songID int64, lines []model.SongLine) error {
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("song_id = ?", songID).Delete(&model.SongLine{}).Error; err != nil {
+			return err
+		}
+		for i := range lines {
+			lines[i].SongID = songID
+		}
+		if len(lines) == 0 {
+			return nil
+		}
+		return tx.Create(&lines).Error
+	})
+}
+
+// DeleteSong 删除歌曲及其歌词行。
+func (d *lyricDaoGorm) DeleteSong(ctx context.Context, id int64) error {
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("song_id = ?", id).Delete(&model.SongLine{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.Song{}, id).Error
+	})
+}
+
+// DeleteSongs 批量删除歌曲及其歌词行。
+func (d *lyricDaoGorm) DeleteSongs(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("song_id IN ?", ids).Delete(&model.SongLine{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id IN ?", ids).Delete(&model.Song{}).Error
+	})
 }
 
 func (d *lyricDaoGorm) GetTranslation(ctx context.Context, hash string) (*model.TranslationCache, error) {

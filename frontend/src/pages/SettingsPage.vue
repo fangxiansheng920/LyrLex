@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { apiGet, apiPut } from '../api/http'
+import { apiGet, apiPost, apiPut } from '../api/http'
 import {
   loadBackgroundImage,
   loadBackgroundOpacity,
@@ -12,6 +12,14 @@ import {
   type Theme,
   type ThemeColors,
 } from '../theme/themes'
+
+interface TranslationTestResult {
+  provider: string
+  ok: boolean
+  result: string
+  error_code: string
+  error: string
+}
 
 interface SettingsData {
   api_keys: {
@@ -43,9 +51,21 @@ const settings = ref<SettingsData>({
 const dataDir = ref('')
 const saving = ref(false)
 const toastMsg = ref('')
+const testing = ref(false)
+const testResult = ref<TranslationTestResult | null>(null)
 const bgPreview = ref<string | null>(null)
 const bgOpacity = ref(Math.round(loadBackgroundOpacity() * 100))
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+// 有道常见错误码的中文说明
+const youdaoErrMsg: Record<string, string> = {
+  '108': '应用 ID 无效（检查 appKey）',
+  '110': '应用未绑定「文本翻译」服务',
+  '202': '签名校验失败（密钥不对或编码问题）',
+  '401': '账户已欠费，请充值',
+  '411': '访问频率受限，稍后再试',
+  '205': '接入方式选错',
+}
 
 function toast(msg: string): void {
   toastMsg.value = msg
@@ -168,6 +188,25 @@ async function saveSettings(): Promise<void> {
   }
 }
 
+async function testTranslation(): Promise<void> {
+  testing.value = true
+  testResult.value = null
+  try {
+    await saveSettings() // 先保存当前填写的密钥，再测试
+    testResult.value = await apiPost<TranslationTestResult>('/settings/test-translation', {})
+  } catch (err) {
+    testResult.value = {
+      provider: 'youdao',
+      ok: false,
+      result: '',
+      error_code: '',
+      error: err instanceof Error ? err.message : '测试失败',
+    }
+  } finally {
+    testing.value = false
+  }
+}
+
 async function openDataDir(): Promise<void> {
   if (window.api?.openDataDir) {
     try {
@@ -241,13 +280,30 @@ onMounted(() => {
       <button class="ghost" @click="applyAccent">应用</button>
     </div>
 
-    <h3>翻译 API 密钥（留空则使用默认免费源）</h3>
+    <h3>翻译 API 密钥</h3>
     <div class="form">
-      <label>有道 App Key<input v-model="settings.api_keys.youdao_app_key" /></label>
-      <label>有道 App Secret<input v-model="settings.api_keys.youdao_app_secret" type="password" /></label>
+      <label>有道应用 ID（appKey）<input v-model="settings.api_keys.youdao_app_key" /></label>
+      <label>有道应用密钥（appSecret）<input v-model="settings.api_keys.youdao_app_secret" type="password" /></label>
       <label>百度 App ID<input v-model="settings.api_keys.baidu_app_id" /></label>
       <label>百度密钥<input v-model="settings.api_keys.baidu_secret" type="password" /></label>
       <label>DeepL Auth Key<input v-model="settings.api_keys.deepl_key" type="password" /></label>
+    </div>
+    <p class="hint">
+      填写有道「文本翻译（NMT）」的应用 ID / 密钥后即时生效，翻译失败或留空时自动回退到免费源；百度 / DeepL 暂为预留。
+    </p>
+    <div class="test-row">
+      <button class="ghost" :disabled="testing" @click="testTranslation">
+        {{ testing ? '测试中…' : '测试有道翻译' }}
+      </button>
+      <span v-if="testResult" class="test-result" :class="testResult.ok ? 'ok' : 'bad'">
+        <template v-if="testResult.ok">✅ 成功：{{ testResult.result }}</template>
+        <template v-else>
+          ❌ {{ testResult.error }}
+          <span v-if="testResult.error_code">
+            （错误码 {{ testResult.error_code }}：{{ youdaoErrMsg[testResult.error_code] || '请查有道文档' }}）
+          </span>
+        </template>
+      </span>
     </div>
 
     <h3>发音源</h3>
@@ -397,6 +453,23 @@ button.primary {
 .hint {
   color: var(--muted);
   font-size: 12px;
+}
+.test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.test-result {
+  font-size: 12px;
+  color: var(--muted);
+}
+.test-result.ok {
+  color: #2e9e5b;
+}
+.test-result.bad {
+  color: #d95d6a;
 }
 .datadir {
   display: flex;

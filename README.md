@@ -1,8 +1,8 @@
-# 歌词单词学习器
+# LyrLex（歌词单词学习器）
 
 个人本地学习工具：导入/搜索歌词，逐句自动翻译，点击歌词中的单词即可查看读音、词义并收藏（支持英文与日文）。
 
-方案文档见 `技术方案.md`，当前处于 **M5 歌曲搜索** 阶段（M1–M4 已完成）。
+方案文档见 `技术方案.md`，**M1–M6 已全部完成**，当前版本 **0.1.2**。
 
 ## 目录结构
 
@@ -52,8 +52,8 @@ go build -o lyrics-server.exe ./cmd/server
 ## M1 验收标准（已完成）
 
 - Go 后端编译通过，`/healthz` 返回 `{"code":0,...}`
-- Electron 启动后能拉起 Go 侧车进程，界面显示「后端：已连接」
-- 四个页面导航可用；设置中心可切换四套预设主题与自定义纯色
+- Electron 启动后能拉起 Go 侧车进程
+- 四个页面导航可用；设置中心可切换预设主题与自定义配色
 
 ## M2 验收标准（已完成）
 
@@ -81,10 +81,12 @@ go build -o lyrics-server.exe ./cmd/server
 - 搜索服务不可用时自动降级：提示粘贴/上传歌词
 - 本地歌曲库：已导入歌曲可再次打开
 
-## M6 验收标准（进行中）
+## M6 验收标准（已完成）
 
-- 设置中心：API key 配置、发音源、打开数据目录
-- electron-builder 打包（NSIS 安装包 + portable 便携版）
+- 设置中心：翻译 API 配置（有道即时生效）、发音源、打开数据目录
+- 设置中心外观：预设/自定义渐变/自定义纯色/按钮颜色/背景图片/背景透明度
+- 歌词学习：重置按钮；模块切换用 KeepAlive 保留各页状态
+- electron-builder 打包（NSIS 安装包 + portable 便携版），产品名 LyrLex
 
 ## 在线歌曲搜索（可选）
 
@@ -112,7 +114,33 @@ cd ../frontend
 npm run dist                                  # 构建 + electron-builder --win
 ```
 
-产物在 `frontend/release/`（NSIS 安装包 + portable 便携版）。
+产物在 `frontend/release/`：
+- `LyrLex <版本>.exe` — 便携版，双击即用
+- `LyrLex Setup <版本>.exe` — NSIS 安装包
+
+版本号改 `frontend/package.json` 的 `version` 字段即可，打包时自动拼进文件名。
 
 > 注意：若项目位于 OneDrive/Defender 同步目录（如桌面），打包时可能报
 > `EPERM: rename win-unpacked.tmp`。把项目挪到非同步目录，或临时关闭同步/实时防护重试即可。
+
+## 翻译源与有道 key（可选）
+
+- 默认使用免费源 MyMemory 翻译，**不需要任何 key**。
+- 想要更稳定/更准的翻译，可申请有道智云的「文本翻译（NMT）」，在「设置中心 → 翻译 API 密钥」填入**应用 ID / 应用密钥**，保存后即时生效；调用失败或额度用尽会自动回退免费源。
+- 音标发音走有道**免费**接口，无需 key。
+
+## 数据存放位置
+
+打包版与 `npm start` 共用同一目录（Electron `userData`）：
+
+```
+%APPDATA%\lyrics-learner-frontend
+```
+
+- `lyrics.db` — 生词本、歌曲、歌词、翻译/查词缓存
+- `settings.json` — 设置中心保存的 API key 等
+- `audio\` — 发音音频缓存
+
+应用内「设置中心 → 数据目录 → 打开目录」可直达；备份/迁移复制整个文件夹即可。
+
+> 仅纯后端调试（`go run ./cmd/server`）时，数据写在项目的 `data\` 目录。

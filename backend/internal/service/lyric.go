@@ -34,7 +34,7 @@ type SongLineIn struct {
 // LyricService 歌词学习相关业务。
 type LyricService interface {
 	Parse(ctx context.Context, text string) (*ParseResult, error)
-	Translate(ctx context.Context, source, target string, lines []string) ([]string, error)
+	Translate(ctx context.Context, source, target string, lines []string, force bool) ([]string, error)
 	Tokenize(ctx context.Context, lang model.Language, line string) ([]provider.Token, error)
 	SaveSong(ctx context.Context, title, artist string, lang model.Language, lines []SongLineIn) (*model.Song, error)
 	GetSong(ctx context.Context, id int64) (*model.Song, error)
@@ -42,6 +42,8 @@ type LyricService interface {
 	ListSongs(ctx context.Context, query string) ([]model.Song, error)
 	SearchSongs(ctx context.Context, query string) ([]provider.SongMeta, error)
 	ImportSong(ctx context.Context, meta provider.SongMeta) (*model.Song, error)
+	DeleteSong(ctx context.Context, id int64) error
+	DeleteSongs(ctx context.Context, ids []int64) error
 }
 
 type lyricService struct {
@@ -78,7 +80,7 @@ func (s *lyricService) Parse(ctx context.Context, text string) (*ParseResult, er
 	return &ParseResult{Language: detectLanguage(lines), Lines: lines}, nil
 }
 
-func (s *lyricService) Translate(ctx context.Context, source, target string, lines []string) ([]string, error) {
+func (s *lyricService) Translate(ctx context.Context, source, target string, lines []string, force bool) ([]string, error) {
 	results := make([]string, len(lines))
 	for i, line := range lines {
 		if !needsTranslation(line) {
@@ -87,9 +89,12 @@ func (s *lyricService) Translate(ctx context.Context, source, target string, lin
 		}
 
 		hash := translationHash(source, target, line)
-		if tc, err := s.dao.GetTranslation(ctx, hash); err == nil {
-			results[i] = tc.Result
-			continue
+		// force=true 时跳过缓存，重新调用当前翻译源
+		if !force {
+			if tc, err := s.dao.GetTranslation(ctx, hash); err == nil {
+				results[i] = tc.Result
+				continue
+			}
 		}
 
 		translated, err := s.trans.Translate(ctx, line, source, target)
@@ -139,13 +144,10 @@ func (s *lyricService) ImportSong(ctx context.Context, meta provider.SongMeta) (
 	return s.saveSong(ctx, meta.Title, meta.Artist, detectLanguage(texts), "online", lines)
 }
 
+// unnamedSong 前端未填歌名时的默认值（不做去重，避免合并不同的歌）。
+const unnamedSong = "未命名歌曲"
+
 func (s *lyricService) saveSong(ctx context.Context, title, artist string, lang model.Language, source string, lines []SongLineIn) (*model.Song, error) {
-	song := &model.Song{
-		Title:    title,
-		Artist:   artist,
-		Language: string(lang),
-		Source:   source,
-	}
 	modelLines := make([]model.SongLine, 0, len(lines))
 	for i, l := range lines {
 		tokensJSON, _ := json.Marshal(l.Tokens)
@@ -155,6 +157,23 @@ func (s *lyricService) saveSong(ctx context.Context, title, artist string, lang 
 			TranslationZH: l.TranslationZH,
 			TokensJSON:    string(tokensJSON),
 		})
+	}
+
+	// 去重：同一「歌名 + 歌手」已存在则覆盖其歌词行，避免重复新增
+	if title != "" && title != unnamedSong {
+		if existing, err := s.dao.FindSongByTitleArtist(ctx, title, artist); err == nil && existing != nil {
+			if err := s.dao.ReplaceSongLines(ctx, existing.ID, modelLines); err != nil {
+				return nil, err
+			}
+			return existing, nil
+		}
+	}
+
+	song := &model.Song{
+		Title:    title,
+		Artist:   artist,
+		Language: string(lang),
+		Source:   source,
 	}
 	if err := s.dao.SaveSong(ctx, song, modelLines); err != nil {
 		return nil, err
@@ -172,6 +191,14 @@ func (s *lyricService) GetSongLines(ctx context.Context, songID int64) ([]model.
 
 func (s *lyricService) ListSongs(ctx context.Context, query string) ([]model.Song, error) {
 	return s.dao.ListSongs(ctx, query)
+}
+
+func (s *lyricService) DeleteSong(ctx context.Context, id int64) error {
+	return s.dao.DeleteSong(ctx, id)
+}
+
+func (s *lyricService) DeleteSongs(ctx context.Context, ids []int64) error {
+	return s.dao.DeleteSongs(ctx, ids)
 }
 
 func splitLines(text string) []string {
