@@ -2,8 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { apiGet, apiPut } from '../api/http'
 import {
+  loadBackgroundImage,
+  loadBackgroundOpacity,
   loadTheme,
   presetThemes,
+  saveBackgroundImage,
+  saveBackgroundOpacity,
   saveTheme,
   type Theme,
   type ThemeColors,
@@ -39,6 +43,8 @@ const settings = ref<SettingsData>({
 const dataDir = ref('')
 const saving = ref(false)
 const toastMsg = ref('')
+const bgPreview = ref<string | null>(null)
+const bgOpacity = ref(Math.round(loadBackgroundOpacity() * 100))
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 function toast(msg: string): void {
@@ -74,6 +80,60 @@ function applyAccent(): void {
   const next: Theme = { ...currentTheme.value, accent: buttonColor.value }
   currentTheme.value = next
   saveTheme(next)
+}
+
+function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width)
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(String(reader.result))
+          return
+        }
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => reject(new Error('图片读取失败'))
+      img.src = String(reader.result)
+    }
+    reader.onerror = () => reject(new Error('图片读取失败'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function onBgFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const dataUrl = await compressImage(file, 1920, 0.82)
+    bgPreview.value = dataUrl
+    saveBackgroundImage(dataUrl)
+    toast('已应用背景')
+  } catch (err) {
+    toast(err instanceof Error ? err.message : '背景设置失败')
+  } finally {
+    input.value = ''
+  }
+}
+
+function clearBg(): void {
+  bgPreview.value = null
+  saveBackgroundImage(null)
+  toast('已清除背景')
+}
+
+function onOpacityChange(): void {
+  saveBackgroundOpacity(bgOpacity.value / 100)
 }
 
 async function loadSettings(): Promise<void> {
@@ -121,6 +181,7 @@ async function openDataDir(): Promise<void> {
 onMounted(() => {
   loadSettings()
   loadDataDir()
+  bgPreview.value = loadBackgroundImage()
 })
 </script>
 
@@ -156,6 +217,22 @@ onMounted(() => {
       <input v-model="gradC" type="text" />
       <button class="ghost" @click="applyGradient">应用</button>
     </div>
+
+    <h3>自定义背景图片</h3>
+    <div class="custom">
+      <label class="file-btn">
+        选择图片
+        <input type="file" accept="image/*" @change="onBgFile" />
+      </label>
+      <button class="ghost" @click="clearBg">清除背景</button>
+    </div>
+    <img v-if="bgPreview" :src="bgPreview" class="bg-preview" alt="背景预览" />
+    <div class="opacity-row">
+      <span>背景透明度</span>
+      <input v-model.number="bgOpacity" type="range" min="0" max="100" @input="onOpacityChange" />
+      <span class="opacity-val">{{ bgOpacity }}%</span>
+    </div>
+    <p class="hint">图片会自动压缩后保存，仅本机可见。</p>
 
     <h3>按钮颜色</h3>
     <div class="custom">
@@ -230,6 +307,45 @@ h3 {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+.file-btn {
+  position: relative;
+  display: inline-block;
+  padding: 9px 16px;
+  border: 1px solid rgba(74, 68, 88, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+}
+.file-btn input {
+  display: none;
+}
+.bg-preview {
+  display: block;
+  margin-top: 10px;
+  max-width: 320px;
+  max-height: 180px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  max-width: 360px;
+}
+.opacity-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.opacity-val {
+  width: 44px;
+  text-align: right;
+  color: var(--muted);
 }
 .form {
   display: flex;

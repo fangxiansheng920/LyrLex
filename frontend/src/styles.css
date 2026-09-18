@@ -15,6 +15,7 @@
   --shadow: 0 6px 20px rgba(120, 170, 215, 0.18);
   --grad: linear-gradient(135deg, #8ecdf2 0%, #6db9e8 100%);
   --grad-violet: linear-gradient(135deg, #9fc7ec 0%, #8ecdf2 100%);
+  --app-bg-image: none;
 }
 
 * {

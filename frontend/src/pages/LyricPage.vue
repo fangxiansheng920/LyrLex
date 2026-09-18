@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, ref } from 'vue'
 import { apiPost, serverBase } from '../api/http'
 import type { LookupData, LyricLine, Meaning, SongData, Token } from '../api/types'
 import { importedLyrics, importedMeta } from '../store'
@@ -82,7 +82,8 @@ async function parseLyrics(fromImport = false): Promise<void> {
   }
 }
 
-onMounted(async () => {
+onActivated(async () => {
+  // 从「歌曲搜索」导入歌词后跳转过来：每次激活都检查一次
   if (importedLyrics.value) {
     inputText.value = importedLyrics.value
     title.value = importedMeta.value?.title ?? ''
@@ -187,6 +188,17 @@ async function addToVocabulary(): Promise<void> {
   }
 }
 
+function resetAll(): void {
+  inputText.value = ''
+  title.value = ''
+  artist.value = ''
+  language.value = 'en'
+  lines.value = []
+  songId.value = 0
+  popover.value = null
+  toast('已重置')
+}
+
 async function saveSong(): Promise<void> {
   if (lines.value.length === 0) {
     toast('请先解析歌词')
@@ -231,6 +243,7 @@ async function saveSong(): Promise<void> {
         <input v-model="title" placeholder="歌名（可选）" />
         <input v-model="artist" placeholder="歌手（可选）" />
         <button :disabled="busy || lines.length === 0" @click="saveSong">保存歌曲</button>
+        <button class="ghost" :disabled="busy" @click="resetAll">重置</button>
         <span v-if="language" class="lang">语言：{{ language === 'en' ? '英文' : '日文' }}</span>
       </div>
     </div>
@@ -354,6 +367,12 @@ button {
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+button.ghost {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid rgba(74, 68, 88, 0.16);
+  box-shadow: none;
 }
 .meta {
   display: flex;

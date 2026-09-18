@@ -91,3 +91,63 @@ export function loadTheme(): Theme {
   }
   return presetThemes[0]
 }
+
+const BG_KEY = 'lyrics-bg-image'
+
+// 自定义背景图片（dataURL）
+export function applyBackgroundImage(dataUrl: string | null): void {
+  document.documentElement.style.setProperty(
+    '--app-bg-image',
+    dataUrl ? `url("${dataUrl}")` : 'none',
+  )
+}
+
+export function saveBackgroundImage(dataUrl: string | null): void {
+  try {
+    if (dataUrl) {
+      localStorage.setItem(BG_KEY, dataUrl)
+    } else {
+      localStorage.removeItem(BG_KEY)
+    }
+  } catch {
+    /* 超出 localStorage 配额时忽略持久化，但本次仍会应用 */
+  }
+  applyBackgroundImage(dataUrl)
+}
+
+export function loadBackgroundImage(): string | null {
+  try {
+    return localStorage.getItem(BG_KEY)
+  } catch {
+    return null
+  }
+}
+
+const BG_OPACITY_KEY = 'lyrics-bg-opacity'
+
+// 自定义背景图片的透明度（0~1）
+export function applyBackgroundOpacity(value: number): void {
+  document.documentElement.style.setProperty('--bg-opacity', String(value))
+}
+
+export function saveBackgroundOpacity(value: number): void {
+  try {
+    localStorage.setItem(BG_OPACITY_KEY, String(value))
+  } catch {
+    /* ignore */
+  }
+  applyBackgroundOpacity(value)
+}
+
+export function loadBackgroundOpacity(): number {
+  try {
+    const raw = localStorage.getItem(BG_OPACITY_KEY)
+    if (raw != null) {
+      const v = Number(raw)
+      if (Number.isFinite(v)) return Math.min(1, Math.max(0, v))
+    }
+  } catch {
+    /* ignore */
+  }
+  return 1
+}

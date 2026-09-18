@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onActivated, ref } from 'vue'
 import { apiDelete, apiGet, serverBase } from '../api/http'
 import type { SongData, VocabularyDetail, VocabularyItem } from '../api/types'
 
@@ -91,9 +91,10 @@ function fmtDate(iso: string): string {
   return iso.slice(0, 10)
 }
 
-onMounted(() => {
+onActivated(() => {
+  // 每次切回生词本时刷新列表（保留搜索词/分区/选中项），确保新收藏能出现
   load()
-  loadSongs()
+  if (songTitles.value.size === 0) loadSongs()
 })
 </script>
 

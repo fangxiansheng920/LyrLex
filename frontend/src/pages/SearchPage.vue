@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onActivated, ref } from 'vue'
 import { apiGet, apiPost } from '../api/http'
 import type { ImportData, SongData, SongMeta } from '../api/types'
 import { activePage, importedLyrics, importedMeta } from '../store'
@@ -104,7 +104,7 @@ async function openLocalSong(song: SongData): Promise<void> {
   }
 }
 
-onMounted(loadLocalSongs)
+onActivated(loadLocalSongs)
 </script>
 
 <template>

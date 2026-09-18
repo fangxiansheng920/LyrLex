@@ -4,7 +4,14 @@ import LyricPage from './pages/LyricPage.vue'
 import VocabularyPage from './pages/VocabularyPage.vue'
 import SearchPage from './pages/SearchPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
-import { applyTheme, loadTheme } from './theme/themes'
+import {
+  applyBackgroundImage,
+  applyBackgroundOpacity,
+  applyTheme,
+  loadBackgroundImage,
+  loadBackgroundOpacity,
+  loadTheme,
+} from './theme/themes'
 import { activePage, type PageKey } from './store'
 
 const pages: { key: PageKey; label: string; component: unknown }[] = [
@@ -18,11 +25,14 @@ const current = computed(() => pages.find((p) => p.key === activePage.value)?.co
 
 onMounted(() => {
   applyTheme(loadTheme())
+  applyBackgroundImage(loadBackgroundImage())
+  applyBackgroundOpacity(loadBackgroundOpacity())
 })
 </script>
 
 <template>
   <div class="app-shell">
+    <div class="app-bg"></div>
     <aside class="sidebar">
       <div class="logo">LyrLex</div>
       <nav>
@@ -37,18 +47,34 @@ onMounted(() => {
       </nav>
     </aside>
     <main class="content">
-      <component :is="current" />
+      <KeepAlive>
+        <component :is="current" />
+      </KeepAlive>
     </main>
   </div>
 </template>
 
 <style scoped>
 .app-shell {
+  position: relative;
   display: flex;
   height: 100%;
   background: linear-gradient(135deg, var(--bg-a), var(--bg-b), var(--bg-c));
 }
+.app-bg {
+  position: absolute;
+  inset: 0;
+  background-image: var(--app-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--bg-opacity, 1);
+  pointer-events: none;
+  z-index: 0;
+}
 .sidebar {
+  position: relative;
+  z-index: 1;
   width: 220px;
   margin: 14px;
   padding: 16px 12px;
@@ -96,6 +122,8 @@ nav button.active {
   box-shadow: 0 4px 12px rgba(90, 165, 220, 0.35);
 }
 .content {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow: auto;
   padding: 24px;

@@ -1,6 +1,6 @@
 {
   "name": "lyrics-learner-frontend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "歌词单词学习器前端（Electron + Vue 3）",
   "main": "dist-electron/main.js",
